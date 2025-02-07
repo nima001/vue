@@ -1,0 +1,96 @@
+// Observer 类 - 负责存储所有的观察者（直接管理观察者）
+class Observer {
+  constructor(data) {
+    this.data = data;
+    this.watchers = [];  // 存储所有观察者
+    this.walk(data);
+  }
+
+  // 对对象的每个属性进行代理和观察
+  walk(data) {
+    if (!data || typeof data !== 'object') return;
+
+    Object.keys(data).forEach(key => {
+      this.defineReactive(data, key, data[key]);
+    });
+  }
+
+  // 定义属性的 getter 和 setter，直接通知所有观察者
+  defineReactive(obj, key, val) {
+    const self = this;  // 保存当前 Observer 实例引用
+
+    // 如果值是对象，递归地进行观察
+    const childObserver = new Observer(val);
+
+    Object.defineProperty(obj, key, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        return val;
+      },
+      set(newVal) {
+        if (newVal === val) return;
+        val = newVal;
+        childObserver.walk(newVal);  // 如果新值是对象，继续观察
+        self.notify();  // 数据发生变化，通知所有观察者
+      }
+    });
+  }
+
+  // 添加观察者
+  addWatcher(watcher) {
+    this.watchers.push(watcher);
+  }
+
+  // 通知所有观察者更新
+  notify() {
+    this.watchers.forEach(watcher => watcher.update());
+  }
+}
+
+// Watcher 类 - 观察者类，监听数据变化并执行回调
+class Watcher {
+  constructor(observer, expression, callback) {
+    this.observer = observer;
+    this.expression = expression;
+    this.callback = callback;
+    this.value = this.get();  // 初始化时获取一次值
+    this.observer.addWatcher(this);  // 添加自己为观察者
+  }
+
+  get() {
+    const value = this.observer.data[this.expression]; // 获取数据
+    return value;
+  }
+
+  update() {
+    const newValue = this.observer.data[this.expression];  // 获取更新后的值
+    if (newValue !== this.value) {
+      this.callback(newValue);  // 数据变化时，执行回调函数
+      this.value = newValue;  // 更新观察者中的值
+    }
+  }
+}
+
+// 示例：创建一个响应式数据对象
+const data = {
+  name: 'John'
+};
+
+// 创建数据的观察者
+const observer = new Observer(data);
+
+// 创建一个观察者 Watcher，监听数据的变化
+const watcher = new Watcher(observer, 'name', (newVal) => {
+  console.log('name changed to', newVal);
+});
+
+// 修改数据
+data.name = 'Doe'; // 会触发观察者更新，控制台会输出：name changed to Doe
+
+
+
+关键点总结：
+观察者模式：数据直接与观察者（Watcher）建立联系，变化时直接通知。
+发布订阅模式：通过 Dep（作为消息中心）解耦了发布者和订阅者，订阅者通过中心来接收通知。
+在 Vue 中，Watcher 既充当了 观察者模式中的观察者，也与 发布订阅模式中的消息中心（Dep） 相互配合，完成数据变化时的视图更新。
