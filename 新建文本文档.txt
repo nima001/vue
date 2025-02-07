@@ -1,0 +1,111 @@
+// Observer 类 - 负责存储所有的订阅者（观察者）
+class Observer {
+  constructor(data) {
+    this.data = data;
+    this.walk(data);
+  }
+
+  // 对对象的每个属性进行代理和观察
+  walk(data) {
+    if (!data || typeof data !== 'object') return;
+
+    Object.keys(data).forEach(key => {
+      this.defineReactive(data, key, data[key]);
+    });
+  }
+
+  // 定义属性的 getter 和 setter，使用发布-订阅机制
+  defineReactive(obj, key, val) {
+    const dep = new Dep(); // 每个属性有一个依赖（Dep）
+    
+    // 如果值是对象，递归地进行观察
+    const childObserver = new Observer(val);
+
+    Object.defineProperty(obj, key, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        if (Dep.target) {
+          dep.addSub(Dep.target); // 如果当前有观察者，添加到该属性的依赖中
+        }
+        return val;
+      },
+      set(newVal) {
+        if (newVal === val) return;
+        val = newVal;
+        // 如果值是对象，继续观察
+        childObserver.walk(newVal);
+        dep.notify(); // 通知所有观察者更新
+      }
+    });
+  }
+}
+
+// Dep 类 - 负责管理观察者
+class Dep {
+  constructor() {
+    this.subscribers = []; // 存储所有的观察者
+  }
+
+  addSub(sub) {
+    this.subscribers.push(sub); // 添加观察者
+  }
+
+  notify() {
+    this.subscribers.forEach(sub => sub.update()); // 通知所有观察者更新
+  }
+}
+
+// Watcher 类 - 观察者类，监听数据变化并执行回调
+class Watcher {
+  constructor(vm, expression, callback) {
+    this.vm = vm;
+    this.expression = expression;
+    this.callback = callback;
+    this.value = this.get(); // 初始化时获取一次值
+  }
+
+  get() {
+    Dep.target = this; // 设定当前观察者为 target
+    const value = this.vm[this.expression]; // 触发 getter
+    Dep.target = null; // 清空 target
+    return value;
+  }
+
+  update() {
+    const newValue = this.vm[this.expression];
+    if (newValue !== this.value) {
+      this.callback(newValue); // 数据变化时，执行回调函数
+      this.value = newValue; // 更新观察者中的值
+    }
+  }
+}
+
+// 示例：创建一个响应式数据对象
+const data = {
+  name: 'John'
+};
+
+// 创建数据的观察者
+new Observer(data);
+
+// 创建一个观察者 Watcher，监听数据的变化
+const watcher = new Watcher(data, 'name', (newVal) => {
+  console.log('name changed to', newVal);
+});
+
+// 修改数据
+data.name = 'Doe'; // 会触发观察者更新，控制台会输出：name changed to Doe
+
+
+
+
+
+
+
+
+解释：
+1.初始化时将data中的数据通过observe来变成响应式的数据
+2.当模板、计算属性、watch或函数等使用到data中的某个数据的时候，就会为这个数据创建一个watcher
+3.watcher的过程中会访问数据，这样就会触发observe类的get方法，将当前watcher添加到该数据的依赖列表中
+4.当数据发生改成就会触发observe的set方法，此时就会触发通知改属性下的所有watcher来更新视图
